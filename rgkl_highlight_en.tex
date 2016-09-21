@@ -1,0 +1,31 @@
+\begin{center}
+\begin{tikzpicture}[scale=.4]
+  \pgfmathsetmacro{\ix}{.5}
+  \begin{scope}
+    \draw[fill=RoyalBlue] (0,-4) rectangle +(3,6);
+    \draw (-0.75,-1.25) node{$A$};
+  \end{scope}
+
+  \begin{scope}[shift={(0:3)}]
+      \draw [->,thick,line width=2pt,red] (0,0) -- (3,0);
+  \end{scope}
+
+  \begin{scope}[shift={(0:6)}]
+    \draw[fill=white] (0,-2) rectangle +(4,4);
+    \foreach \x in { 0,...,7 }
+    \draw[fill=red] (\x*\ix,2-\ix-\x*\ix) rectangle +(\ix,\ix);
+    \foreach \x in { 0,...,6 }
+    \draw[fill=red] (\x*\ix+\ix,2-\ix-\x*\ix) rectangle +(\ix,\ix);
+    \draw (0.75,-1.25) node{$B_k$};
+  \end{scope}
+
+  \begin{scope}[shift={(0:10)}]
+    \draw [->,thick,line width=2pt] (0,0) --
+    (1,0) node[right,align=center, text width=2.3cm,rounded corners,draw=darkgreen,fill=white,inner sep=1ex]{SVD for $B_k$} --
+    (4.5,0) -> (4.5,-2.6) node{};
+    \draw [->,thick,line width=2pt] (1,-4) node[right,align=center, text width=2.3cm,draw=DarkOrange,fill=white,inner sep=1ex]{Convergence Test} -- (10.5,-4)node(hogehoge)[right,align=center]{$\left(\sigma_j,\ \bm{u}_j,\ \bm{v}_j\right)$};
+    \draw [->,thick,line width=2pt,red] (1,-4) -- (-5.5,-4) -- (-5.5,0) node{};
+    \draw (-2.5, -4) node[red,below]{$k:=k+1$};
+  \end{scope}
+\end{tikzpicture}
+\end{center}

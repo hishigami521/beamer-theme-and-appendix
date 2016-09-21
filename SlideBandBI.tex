@@ -1,0 +1,560 @@
+\begin{frame}
+  \frametitle{Chapter 5: 実対称帯行列の部分固有対計算}
+  \begin{block}{Chapter 5の内容}
+    \begin{enumerate}[Sec.~5.1]
+    \item 実対称帯行列向けの2分法
+      \begin{itemize}
+      \item Guptaの2分法
+      \item Murataの2分法
+      \item[\checkmark] 並列化手法
+      \end{itemize}
+    \item 実対称帯行列向けの逆反復法とその並列化
+      \begin{itemize}
+      \item 再直交化付き逆反復法
+      \item[\checkmark] 再直交化付きブロック逆反復法 (cf: Sec.~4.2)
+      \end{itemize}
+    \item 共有メモリ型マルチコア計算機上での数値実験による性能評価
+    \end{enumerate}
+    \end{block}
+
+  \begin{enumerate}[{[{A}1]}]
+    \footnotesize
+    \setcounter{enumi}{3}
+\item H. Ishigami, H. Hasegawa, K. Kimura, and Y. Nakamura,
+  ``A parallel bisection and inverse iteration solver for a subset of eigenpairs of symmetric band matrices,'' submitted.
+  \end{enumerate}
+\end{frame}
+
+%%% Intro of Gupta & Murata
+\begin{frame}
+  \frametitle{既存の実対称帯行列向け2分法+逆反復法}
+
+  \begin{block}{既存の実対称帯行列向け2分法+逆反復法 [Gupta (1973)] [Murata (1986)]}
+    \begin{itemize}
+    \item 固有値計算: $\nu_B(\mu)$の計算法が異なる
+      \begin{itemize}
+      \item $\nu_B(\mu)$: $B$の$\mu$未満の固有値の数
+      \item 区間$(\mu^L,\mu^R]$に関する2分探索における探索指標
+      \end{itemize}
+    \item 固有ベクトル計算: 共通して，再直交化付き逆反復法
+    \end{itemize}
+  \end{block}
+
+  \begin{exampleblock}{実装方針}
+    \begin{itemize}
+    \item 2分法: 実対称3重対角行列向けの\texttt{dstebz}に基づいて実装
+      \begin{itemize}
+      \item[\checkmark] 実対称3重対角行列向けの実装との違い: $\nu_B(\mu)$の計算
+      \item 並列化: Chapter 2において示したものと同じ並列化
+      \end{itemize}
+    \item 逆反復法: 実対称3重対角行列向けの\texttt{dstein}に基づいて実装
+      \begin{itemize}
+      \item[\checkmark] 実対称3重対角行列向けの実装との違い: 連立1次方程式の計算
+      \end{itemize}
+    \end{itemize}
+  \end{exampleblock}
+  
+\end{frame}
+
+%%% Gupta vs. Murata in bisection
+\begin{frame}
+  \frametitle{実対称帯行列向け2分法の実装}
+  \begin{block}{[Gupta (1973)]による実対称帯行列向け2分法の実装}
+    \begin{itemize}
+    \item Strumの定理に基づき，Martin-Wilkinsonの特殊ガウスによって計算
+      \begin{itemize}
+      \item BLAS 1 + Partial pivoting $\to$ 安定
+      \item 計算量: \underline{$3w^2 n$}
+      \end{itemize}
+    \end{itemize}
+  \end{block}
+
+  \begin{exampleblock}{[Murata (1986)]による実対称帯行列向け2分法の実装}
+    \begin{itemize}
+    \item $\nu_B(\mu)$の計算におけるハイブリッド実装
+      \begin{enumerate}
+      \item Sylvester慣性則に基づき，LU分解を中心に用いる
+        \begin{itemize}
+        \item 計算量: \underline{$w^2 n$}
+        \item[\checkmark] 不安定
+        \item 本研究では，ブロック実装（BLAS 2 や BLAS 3が適用できる）
+        \end{itemize}
+      \item 終盤: Martin-Wilkinsonの特殊ガウスにより計算
+        \begin{itemize}
+        \item 変更の基準: LU分解が破綻 / $U$の対角要素の絶対値が非常に小さい
+        \end{itemize}
+      \end{enumerate}
+    \item Guptaの2分法よりも高速と期待できる
+    \end{itemize}
+  \end{exampleblock}
+\end{frame}
+
+%%% parallel bisection
+\begin{frame}[shrink]
+  \frametitle{実対称帯行列に対する並列2分法の実装}
+  \begin{block}{実対称帯行列に対する並列2分法}
+    \begin{algorithmic}[1]
+      \Function{ParallelBandBisection}{$B$, $\ell$}
+      \State Set $\mu^L_1, \mu^R_1$
+      \Comment Use Gerschgorin theorem, etc.
+      \State $k^{\textrm{next}}_b:=1,\ k^{\textrm{next}}_e:=1$
+      \Repeat
+      \State $k_b:=k^{\textrm{next}}_b,\ k_e:=k^{\textrm{next}}_e$ 
+      \State \textcolor{red}{\texttt{!\$omp parallel do private($\mu_k$)}}
+      \Do{$k:=k_b$ to $k_e$}
+      \Comment $k_e \le \ell$
+      \State $\mu_k := (\mu^L_k+\mu^R_k) / 2$
+      \State \textcolor{blue}{Compute $\nu_B( \mu_k)$}
+      \EndDo
+      \State Update $\mu^L_k, \mu^R_k$, and $k^{\textrm{next}}_e$ for $k=k_b,\ \dots,\ k_e$ %(See Table~\ref{tab:update-rule-bisection})
+      \State
+      \begin{varwidth}[t]{\textwidth}
+        Check $|\mu^L_k - \mu^R_k |$ for $k=k_b,\ \dots,\ k_e$ \\
+        \& Update $\mu^L_k$, $\mu^R_k$, and $k^{\textrm{next}}_b$ if necessary
+      \end{varwidth}
+      \Until{$k^{\textrm{next}}_b > k^{\textrm{next}}_e$}
+      \State $\mu_k := (\mu^L_k+\mu^R_k) / 2$ for $k=1,\ \dots,\ \ell$ \& Sort them in descending order
+      \State \Return $\tilde{\lambda}_k := \mu_k$ for $k=1,\ \dots,\ \ell$
+      \EndFunction
+    \end{algorithmic}
+  \end{block}
+\end{frame}
+
+
+\begin{frame}
+  \frametitle{固有ベクトル計算の計算時間 (16 threads)}
+  \begin{minipage}{.5\textwidth}
+    \underline{$B_1$: $n=20,000$, $w=64$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/time_bisec_b1color}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{$B_2$: $n=40,000$, $w=256$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/time_bisec_b2color}
+  \end{minipage}
+  \begin{itemize}
+  \item Murataの2分法の方が，Guptaの2分法に比べて高速
+    \begin{itemize}
+    \item for $B_1$: ($l=250$) 2.1x, ($l=500$) 2.1x, ($l=1,000$) 2.1x 
+    \item for $B_2$: ($l=250$) 2.6x, ($l=500$) 3.0x, ($l=1,000$) 3.0x
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{2分法における計算回数の内訳}
+    %% \# of LU fact. (Block LU or MWGE) in computation of eigenvalues}
+
+  \begin{itemize}
+  \item How to compute subsets of eigenvalues:
+    \begin{itemize}
+    \item Guptaの2分法:  Martin-Wilkinsonの特殊ガウス (\textcolor{blue}{MWGE})
+    \item Murataの2分法: \textcolor{red}{Block LU}分解 or \textcolor{blue}{MWGE}
+    \end{itemize}
+  \end{itemize}
+
+  \begin{itemize}
+  \item \underline{$B_1$: $n=20,000$, $w=64$, random}
+    \begin{center}
+      \begin{tabular}{llccc}
+	\multicolumn{2}{l}{\# of required eigvals.} & 250 & 500 & 1,000 \\\hline\hline
+	Gupta & MWGE & 9,896 & 19,511 & 38,544 \\\hline
+	Murata & Block LU & 9,571 & 18,874 & 37,085 \\
+	& MWGE & 75 & 137 & 459  \\\hline
+      \end{tabular}
+    \end{center}
+  \item \underline{$B_2$: $n=40,000$, $w=256$, random}
+    \begin{center}
+      \begin{tabular}{lcccc}
+	\multicolumn{2}{l}{\# of required eigvals.} & 250 & 500 & 1,000 \\\hline\hline
+	Gupta & MWGE & 9,216 & 18,234 & 36,168 \\\hline
+	Murata & Block LU & 9,103 & 17,936 & 35,238 \\
+	& MWGE & 113 & 298 & 930 \\\hline
+      \end{tabular}
+    \end{center}
+  \end{itemize}
+\end{frame}
+
+%%% Eigenvector computation
+%%% Difference between Tri and Band
+\begin{frame}{逆反復法に基づく実対称帯行列の固有ベクトル計算}
+  
+  \begin{block}{実装の方針}
+    \begin{itemize}
+    \item 実対称3重対角行列向けの\texttt{dstein}に基づいて実装
+    \item[\checkmark] 実対称3重対角行列向けの実装との違い: 連立1次方程式の計算
+      \begin{itemize}
+      \item ピボッティング付きブロック$LU$分解: \texttt{dgbtrf}
+      \item 求解計算: \texttt{dgbtrs}
+      \end{itemize}
+    \end{itemize}
+  \end{block}
+  
+  \begin{itemize}
+  \item[\checkmark] 実対称3重対角行列向け逆反復法と同様の改良が可能
+  \item 従来法: 再直交化付き逆反復法
+    \begin{itemize}
+    \item 再直交化: MGS法
+    \item 連立1次方程式の求解におけるメモリ使用量: $(3w+1)n$
+    \end{itemize}
+  \item 提案法: 再直交化付きブロック逆反復法
+    \begin{itemize}
+    \item 連立1次方程式の求解におけるメモリ使用量: $r(3w+1)n$
+    \end{itemize}
+  \end{itemize}
+
+\end{frame}
+
+%%% 1: Inv
+\begin{frame}[shrink]
+  \frametitle{従来法：実対称帯行列に対する再直交化付き逆反復法 (Inv)}
+  \begin{block}{Alg. 実対称帯行列に対する再直交化付き逆反復法 (Inv)}
+    \begin{algorithmic}[1]
+      \Function{BandInv}{$B,\ \ell,\ \tilde{\lambda}_1, \ \dots, \ \tilde{\lambda}_\ell$}
+      \Do{$k:=1$ to $\ell$}
+      \State $i:=0$
+      \State Generate an initial random vector: $\bm{v}_k^{(0)}$
+      \State \fcolorbox{blue}{blue!20}{$B - \tilde{\lambda}_k = P_k L_k U_k$}
+      \Comment Call \texttt{dgbtrf}
+      \Repeat
+      \State $i:=i+1$
+      \State Normalize $\bm{v}_k^{(i-1)}$ to $\bm{q}_k^{(i-1)}$
+      \State \fcolorbox{blue}{blue!20}{Solve $P_k L_k U_k \bm{v}_k^{(i)} = \bm{q}_k^{(i-1)}$}
+      \Comment Call \texttt{dgbtrs}
+      \If{$k>1$ and $|\tilde{\lambda}_{k-1} - \tilde{\lambda}_k | \le 10^{-3} \times \max(|\tilde{\lambda}_1|,|\tilde{\lambda}_n|)$, }
+      \State \fcolorbox{darkgreen}{darkgreen!10}{$\bm{v}_k^{(i)}$を再直交化して$\bm{q}_k^{(i)}$とする}（\textcolor{blue}{MGS}法）
+      \Else
+      \State $k_1 := k$
+      \EndIf
+      \Until{some condition is met.}
+      \State Normalize $\bm{v}_k^{(i)}$ to $\bm{q}_k^{(i)}$
+      \State $Q_k := \begin{bmatrix} Q_{k-1} & \bm{q}_k^{(i)} \end{bmatrix}$
+      \EndDo
+      \State \Return $Q_\ell = \begin{bmatrix} \bm{q}_1 & \cdots & \bm{q}_\ell \end{bmatrix}$
+      \EndFunction
+    \end{algorithmic}
+  \end{block}
+\end{frame}
+
+%%% 2: BIR
+\begin{frame}[shrink]
+  \frametitle{提案法：実対称帯行列に対する再直交化付きブロック逆反復法(BIR)}
+    \begin{exampleblock}{Alg.~実対称帯行列に対する再直交化付きブロック逆反復法 (BIR)}
+      %\footnotesize
+      \begin{algorithmic}[1]
+        \Function{BandBIR}{$B,\  r,\ \hat{\ell},\ \tilde{\lambda}_1, \ \dots, \ \tilde{\lambda}_{\hat{\ell}}$}
+          \State Set an $n \times r$ matrix $Q_0$ be $Q_0 := \bm{O}$
+          \Do{$j:=1$ to $\hat{\ell}/r$}
+          \State $i := 0$
+          \State Generate $Q^{(0)}_{j,r} := \begin{bmatrix} \bm{q}^{(0)}_{(j-1)r+1} & \cdots & \bm{q}^{(0)}_{jr} \end{bmatrix}$
+          \State \textcolor{red}{\texttt{!\$omp parallel do}}
+          \Do{$k=:(j-1)r+1$ to $jr$}
+          \State \fcolorbox{blue}{blue!20}{$B - \tilde{\lambda}_k = P_k L_k U_k$}
+          \Comment Call \texttt{dgbtrf}
+          \EndDo
+          \Repeat
+          \State $i := i+1$
+          \State \textcolor{red}{\texttt{!\$omp parallel do}}
+          \Do{$k=:(j-1)r+1, \ \dots, \ jr$}
+          \State \fcolorbox{blue}{blue!20}{Solve $P_k L_k U_k \bm{v}^{(i)}_k = \bm{q}^{(i-1)}_k$} %by forward and backward substitution
+          \Comment Call \texttt{dgbtrs}
+          \EndDo
+          \State \fcolorbox{red}{darkred!10}{$V^{(i)}_{j,r} := V^{(i)}_{j,r} - Q_{(j-1)r} Q_{(j-1)r}^\top V_{j,r}$}
+          \Comment Call \texttt{dgemm} $\times 2$
+          \State \fcolorbox{darkgreen}{darkgreen!10}{$V^{(i)}_{j,r} = \overline{Q}^{(i)}_{j,r} R^{(i)}_{j,r}$}
+          \Comment QR分解
+          \State \fcolorbox{red}{darkred!10}{$\overline{Q}^{(i)}_{j,r} := \overline{Q}^{(i)}_{j,r} - Q_{(j-1)r} Q_{(j-1)r}^\top \overline{Q}^{(i)}_{j,r}$}
+          \Comment Call \texttt{dgemm} $\times 2$
+          \State \fcolorbox{darkgreen}{darkgreen!10}{$\overline{Q}^{(i)}_{j,r} = Q^{(i)}_{j,r} R^{(i)}_{j,r}$}
+          \Comment QR分解
+          \Until{converge}
+          \State $Q_{jr} := \begin{bmatrix} Q_{(j-1)r} & Q^{(i)}_{j,r} \end{bmatrix}$  $\left( Q_r := \left[ Q^{(i)}_{1,r} \right] \right)$
+          \EndDo
+          \State \Return $Q_{\hat{\ell}} = \begin{bmatrix} \bm{q}_1 & \cdots & \bm{q}_{\hat{\ell}} \end{bmatrix}$
+          \EndFunction
+        \end{algorithmic}
+    \end{exampleblock}
+\end{frame}
+
+%%% 3: Cost
+\begin{frame}{計算量の比較}
+  \begin{block}{計算量の比較}
+    \begin{center}
+      \begin{tabular}{lcc}
+        & $B\to T$ + EVD for $T$ & EVD for $B$ \\ \hline\hline
+        帯行列の3重対角化      & \textcolor{red}{$O(wn^2)$} & -\\\hline 
+        2分法           & $O(\ell n)$ & \textcolor{red}{$O(\ell w^2 n)$}\\\hline
+        連立1次方程式の求解 & $O(\ell n)$ & \textcolor{blue}{$O(\ell w^2 n)$} \\ 
+        再直交化 & \textcolor{blue}{$O(\hat{\ell}_{\max}^2 n)$} & $O(\hat{\ell}_{\max}^2 n)$ \\\hline
+        逆変換     & \textcolor{red}{$O(\ell n^2)$} & - 
+      \end{tabular}
+    \end{center}
+  \end{block}
+  \begin{itemize}
+  \item 変数の説明:
+    \begin{itemize}
+    \item $n$: 行列サイズ
+    \item $\ell$: 求めたい固有対の数
+    \item $w$: 実帯対称行列$B$の半帯幅
+    %% \item $\ell$: $\nu$の計算回数 (おおよそ$\ell$に比例)
+    \item $\hat{\ell}_{\max}$: 最も多く固有値が属しているクラスターに属する固有値の数
+    \item[\checkmark] 2分法と逆反復の反復回数:
+      \begin{itemize}
+      \item 逆反復法（実験では3回）に比べると，2分法の回数は非常に多い
+      \end{itemize}
+    \end{itemize}
+  \end{itemize}
+  \begin{itemize}
+  \item[\checkmark] BIR: 「連立1次方程式の求解」は，少ない同期で並列化できる
+  \end{itemize}
+\end{frame}
+
+%%% Numerical experiments
+
+\begin{frame}
+  \frametitle{Configurations of numerical experiments}
+  \begin{block}{Numerical experiments}
+    \begin{itemize}
+    \item 実対称帯行列の固有対を最大のものから$\ell$個だけ計算
+      \begin{itemize}
+      \item $\ell=250,\ 500,\ 1000$
+      \end{itemize}
+    \item テスト行列 ($w$: 半帯幅，各要素は$(0,1)$の一様乱数)
+      \begin{itemize}
+      \item $B_1$: $n=20,000$, $w=64$
+      \item $B_2$: $n=40,000$, $w=256$
+      \end{itemize}
+    \end{itemize}
+  \end{block}
+
+  \underline{Configurations of the experimental environment}
+  \begin{center}
+    \begin{tabular}{ll}
+      CPU         & Intel Xeon E5-2670@2.6GHz, 16 cores (8 cores $\times$ 2) \\
+      & L3 cache: 20MB $\times$ 2 \\
+      RAM         & DDR3-1600 64GB, 136.4GB/sec \\
+      Compiler 	& Intel C++/Fortran Compiler 15.0.2 \\
+      Options 	& \texttt{-O3 -xHOST -ipo -no-prec-div} \\ 
+      & \texttt{-openmp -mcmodel=medium -shared-intel} \\
+      Software 	& Intel Math Kernel Library 11.2.2 
+      %%  	Run option  & \texttt{numactl -i all}
+    \end{tabular}
+  \end{center}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Summary of codes}
+
+  \begin{alertblock}{Summary of codes}
+    \begin{itemize}
+    \item Codes for computing desired eigenpairs:
+      \begin{enumerate}
+      \item DSBEVX (MKL)
+	\begin{itemize}
+	\item 3重対角化+(3重向け)2分法 \& 再直交化付き逆反復法 (MGS法)
+	\end{itemize}
+      \item PBi + Inv-MGS
+	\begin{itemize}
+	\item PBi: 実対称帯行列向け2分法
+	\item Inv-MGS: 実対称帯行列向け逆反復法 (再直交化: MGS法)
+	\end{itemize}
+      \item PBi + BIR
+	\begin{itemize}
+	\item $r$ (BIRにおけるブロック幅): $16(=\text{\# of max threads})$
+	\end{itemize}
+      \end{enumerate}
+    \end{itemize}
+  \end{alertblock}
+
+  \begin{itemize}
+  \item 各コードの並列化
+    \begin{center}
+      \scalebox{0.9}{
+      \begin{tabular}{lcc}\hline
+	PBi &  & \textcolor{red}{by OpenMP} \\
+	& 他のBLAS演算 & Serial \\\hline
+	Inv-MGS & 連立1次方程式の求解 & \textcolor{blue}{Intel MKL BLAS} \\
+	& 再直交化 & \textcolor{blue}{Intel MKL BLAS} \\\hline
+	BIR & 連立1次方程式の求解 & \textcolor{red}{by OpenMP} \\
+	& ブロック再直交化 & \textcolor{blue}{Intel MKL BLAS} \\\hline
+      \end{tabular}
+      }
+    \end{center}
+  \end{itemize}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{実行時間の比較 (Inv-MGS vs. BIR, 16 threads)}
+  \begin{minipage}{.5\textwidth}
+    \underline{$B_1$: $n=20,000$, $w=64$, random}\\
+    \centering
+    \includegraphics[scale=.6]{./figure/src05/time_vec_b1color}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{$B_2$: $n=40,000$, $w=256$, random}\\
+    \centering
+    \includegraphics[scale=.6]{./figure/src05/time_vec_b2color}
+  \end{minipage}
+  \begin{itemize}
+  \item BIR is faster than Inv-MGS
+    \begin{itemize}
+    \item for $B_1$: ($\ell=250$) 6.3x, ($\ell=500$) 6.8x, ($\ell=1,000$) 7.4x 
+    \item for $B_2$: ($\ell=250$) 7.5x, ($\ell=500$) 8.3x, ($\ell=1,000$) 8.7x
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{実行時間の比較 (DSBEVX(Intel MKL) vs. PBI+BIR, 16 threads)}
+  \begin{minipage}{.5\textwidth}
+    \underline{$B_1$: $n=20,000$, $w=64$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/time_b1color}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{$B_2$: $n=40,000$, $w=256$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/time_b2color}
+  \end{minipage}
+  
+  \begin{itemize}
+  \item 提案法は，Intel MKLの\texttt{dsbevx}よりも高速
+    \begin{itemize}
+    \item for $B_1$: ($\ell=250$) 6.5x, ($\ell=500$) 4.9x, ($\ell=1,000$) 3.9x 
+    \item for $B_2$: ($\ell=250$) 3.5x, ($\ell=500$) 2.2x, ($\ell=1,000$) 1.5x
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{残差$\| BQ-QD \|_\infty / l$の比較}
+  \begin{minipage}{.5\textwidth}
+    \underline{$B_1$: $n=20,000$, $w=64$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/res_b1color}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{$B_2$: $n=40,000$, $w=256$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/res_b2color}
+  \end{minipage}
+\end{frame}
+
+\begin{frame}
+  \frametitle{直交性$\| Q^\top Q-I \|_\infty / l$の比較}
+  \begin{minipage}{.5\textwidth}
+    \underline{$B_1$: $n=20,000$, $w=64$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/orth_b1color}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{$B_2$: $n=40,000$, $w=256$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/orth_b2color}
+  \end{minipage}
+\end{frame}
+
+\begin{frame}
+  \frametitle{実行時間の内訳 (PBI+Inv-MGS vs. PBI+BIR, 16 threads)}
+  \begin{minipage}{.5\textwidth}
+    \underline{$B_1$: $n=20,000$, $w=64$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/breakdown_b1color}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{$B_2$: $n=40,000$, $w=256$, random}\\
+    \centering
+    \includegraphics[scale=.7]{./figure/src05/breakdown_b2color}
+  \end{minipage}
+  \begin{itemize}
+  \item[\checkmark] 並列2分法の割合が高い $\to$ 多分法などによる更なる高速化
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Chapter 5 のまとめ}
+  \begin{itemize}
+  \item {[Murata(1986)]}による実対称帯行列向け2分法
+    \begin{itemize}
+    \item ブロックLU分解とMartin-Wilkinson's special Gaussを利用
+    \item LAPACKの2分法コード\texttt{dstebz}に準じて，OpenMPによる簡単な並列化
+    %% \item[\checkmark] Block LU fact. effectively accelerates the eigenvalue computation 
+    \end{itemize}
+  \end{itemize}
+
+  \begin{itemize}
+  \item 実対称帯行列の固有ベクトル計算法として, \\
+    再直交化付きブロック逆反復法を実装
+    \begin{itemize}
+    \item 行列乗算中心+連立1次方程式を並列で計算
+    \item[\checkmark] 逆反復+MGS法よりも高速
+    \end{itemize}
+  \end{itemize}
+
+  \begin{itemize}
+  \item 共有メモリマルチコアプロセッサ上での数値実験
+    \begin{itemize}
+    \item 提案実装(実対称帯行列向け2分法＋再直交化付きブロック逆反復法)によって, 従来実装よりも高速な固有対計算が実現できることを確認
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+%% \begin{frame}
+%%   \frametitle{Future work}
+
+%%   \begin{block}{Future work}
+%%     \begin{itemize}
+%%     \item 前処理アルゴリズムを伴う実装コードの開発
+%%       \begin{itemize}
+%%       \item Bischof's or Wu's band reduction
+%%       \item Block Golub-Kahan-Lanczos algorithm 
+%%       \end{itemize}
+%%     \item 分散メモリ型並列計算機向けの実装\&性能評価
+%%     \end{itemize}
+%%   \end{block}
+
+%%   \begin{alertblock}{Remark: 再直交化付きブロック逆反復法}
+%%     \begin{itemize}
+%%     \item 再直交化アルゴリズムやQR分解には他のアルゴリズムを実装可能
+%%     \item Communication-avoidingなQR分解: 
+%%       \begin{itemize}
+%%       \item コレスキーQR2法 [Fukaya, et al. (2014)]
+%%       \item シフト付きコレスキー分解 [Yanagisawa, et al.]
+%%       \end{itemize}
+%%     \end{itemize}
+%%   \end{alertblock}
+
+%% \end{frame}
+
+%% \begin{frame}
+%%   \frametitle{Related work}
+%%   \begin{exampleblock}{Twisted factorization (or, MR3 algorithm) for computing eigenpair subsets}
+%%     \begin{itemize}
+%%     \item for symmetric tridiagonal
+%%       \begin{itemize}
+%%       \item {[Parlett-Dhilon (2000)]}
+%%       \item {[Willems-Lang (2012)]}
+%%       \end{itemize}
+%%     \item for symmetric block tridiagonal 
+%%       \begin{itemize}
+%%       \item {[K\"{o}niga-Moldaschlb-Gansterer (2012)]}
+%%       \end{itemize}
+%%     \end{itemize}
+%%   \end{exampleblock}
+
+%%   \begin{block}{Parallel impl. of bisection algorithm for symmetric tridiagonal matrices}
+%%     \begin{itemize}
+%%     \item Parallelism w.r.t. the indices of eigenvalues
+%%       \begin{itemize}
+%%       \item ScaLAPACK: \texttt{PxSTEBZ} routine [Demmel-Dhillon-Ren (1994)]
+%%       \end{itemize}
+%%     \item Increase search point
+%%       \begin{itemize}
+%%       \item Multi-section method [Lo-Philippe-Sameh (1987)] [Simon (1989)]
+%%       \item Multi-section with multiple eigenvalues method [Katagiri-V\"{o}mel-Demmel (2007)]
+%%       \end{itemize}
+%%     \end{itemize}
+%%   \end{block}
+%% \end{frame}

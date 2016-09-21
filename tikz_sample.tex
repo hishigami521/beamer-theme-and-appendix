@@ -1,0 +1,7 @@
+  \begin{minipage}{.4\hsize}
+    \begin{tikzpicture}[domain=0:1,samples=200,>=stealth]
+      \draw[->] (-0.1,0) -- (1.2,0) node[right] {$x$};
+      \draw[->] (0,-0.1) -- (0,1.2) node[right] {$y$};
+      \draw plot (\x, {5*\x*\x*\x-7.5*\x*\x+3*\x+0.25}) node[below] {$y$};
+    \end{tikzpicture}
+  \end{minipage}

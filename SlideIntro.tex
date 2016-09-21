@@ -1,0 +1,320 @@
+\begin{frame}
+  \frametitle{部分固有対計算}
+  \begin{block}{Def.~固有対 $\left( \lambda_j,\bm{q}_j \right)$}
+    \begin{itemize}
+    \item 実$n$次\textcolor{red}{対称}行列$A$の固有対$\left( \lambda_j,\bm{q}_j \right)$は，以下を満たす:  
+      \begin{center}
+	$A \bm{q}_j=\lambda_j \bm{q}_j,\ \quad j=1,\ \dots,\ n$
+      \end{center}
+      \begin{itemize}
+      \item $\lambda_j\ (\in \mathbb{R})$: $A$の固有値 ($\lambda_1 \ge \cdots \ge \lambda_n$)
+      \item $\bm{q}_j\ (\in \mathbb{R}^n)$: $\lambda_j$に対応する固有ベクトル
+      \end{itemize}
+    \end{itemize}
+  \end{block}
+  
+  \begin{itemize}
+  \item \textcolor{blue}{部分}固有対計算の応用:
+    \begin{itemize}
+    \item 振動解析 / 分子軌道法
+    \item カーネル主成分分析 [Sch\"{o}lkopf-Smola-M\"{u}ller (1998)]
+    \item[\checkmark] 部分特異対計算
+    \end{itemize}
+  \item[\checkmark] 問題の大規模化 $\to$ \textcolor{red}{並列計算}による高速化
+    \begin{itemize}
+    \item マルチコア計算（共有メモリ, 1ノード）
+    \item 大規模分散並列計算（スーパーコンピュータ）
+    \item アクセラレータ（Intel Xeon Phi Co-processor, GPU）
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{部分固有対計算の方法}
+  \input{one_phase_tridiag_evd_en.tex}
+  \begin{itemize}
+  \item $A$から直接計算するのではなく，以下の3段階に分けて計算
+    \begin{enumerate}
+    \item 3重対角化 [Wilkinson (1962), etc.]
+      \begin{align*}
+        T:= & V_T A V_T^\top
+      \end{align*}
+    \item 実対称3重対角行列$T$の固有対を計算
+    \item 逆変換: $T$の固有ベクトルから$A$の固有ベクトルを計算
+      \begin{align*}
+        \bm{q}_k := & V_T \bm{q}_k \quad \text{for $k=1,\dots,\ell$}
+      \end{align*}
+    \end{enumerate}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{部分固有対計算の並列実装 (1/2)}
+  \input{one_phase_tridiag_evd_en.tex}
+  \begin{itemize}
+  \item 1-step tridiagonalization (3重対角化): Full-to-Tri
+    \begin{itemize}
+    \item Householder tridiagonalization [Wilkinson (1962)]
+    \item[\checkmark] Dongarra's algorithm [Dongarra et al.~(1989)]: ブロック版
+    \end{itemize}
+  \end{itemize}
+  \vfill
+  \input{two_phase_tridiag_evd_en.tex}
+  \begin{itemize}
+  \item 2-step tridiagonalization: Full-to-Band + Band-to-Tri
+    \begin{itemize}
+    \item[\checkmark] Bischof's algorithm [Bischof-Lang-Sun (1993/2000)]
+      \begin{itemize}
+      \item $A \to B$: Dongarra法よりも高性能
+      \item[\checkmark] $B \to T$のスケーラビリティが課題
+      \end{itemize}
+    \item $B \to T$の性能は逆変換の計算量とのトレードオフ
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{部分固有対計算の並列実装 (2/2)}
+  \input{one_phase_band_evd_en.tex}
+  \begin{itemize}
+  \item 3重対角行列$T$ではなく，\underline{帯行列$B$に変換}
+    \begin{enumerate}
+    \item 帯行列化 [Bischof-Lang-Sun (1993/2000)]
+      \begin{align*}
+        B:= & V_B A V_B^\top
+      \end{align*}
+    \item 実対称帯行列$B$の固有対を計算
+    \item 逆変換: $B$の固有ベクトルから$A$の固有ベクトルを計算
+      \begin{align*}
+        \bm{q}_k := & V_B \bm{q}_k \quad \text{for $k=1,\dots,\ell$}
+      \end{align*}
+    \end{enumerate}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{実対称3重対角行列の固有対計算アルゴリズム}
+  \begin{block}{実対称3重対角行列の固有対計算アルゴリズム}
+    \begin{itemize}
+    \item 全固有対計算アルゴリズム \underline{$O(n^3)$}: 
+      \begin{itemize}
+      \item QR法 [Bowdler-Martin-Reinsch-Wilkinson (1968)]
+      \item 分割統治法 [Cuppen (1980) / Gu-Eisenstat (1995)]
+      \end{itemize}
+    \item 部分固有対計算アルゴリズム: 
+      \begin{itemize}
+      \item 2分法+逆反復法 [Kahan (1966), etc.] \underline{$O(\ell^2 n)$}
+        \begin{itemize}
+        \item {\color{red}2分法}: 大粒度に並列化でき, 相対精度の意味で高精度な固有値計算法
+        \item {\color{blue}逆反復法}: 再直交化計算のため, 計算量が多く並列化も困難
+        \end{itemize}
+      \item MRRR法 [Dhillon (1997), etc.] \underline{$O(\ell n)$}
+        \begin{itemize}
+        \item 2分法+逆反復法の改良アルゴリズム
+        \item 特定の行列では, 計算量が増加してしまう
+        \item ロバストに高精度な計算を実現できるわけではない
+        \end{itemize}
+      \end{itemize}
+    \end{itemize}
+  \end{block}
+
+  \begin{itemize}
+  \item[\checkmark] 高速・高精度な部分固有対計算の実現 $\to$ \textcolor{red}{逆反法の高速化}
+    \begin{itemize}
+    \item Chapter 3 \& 4: $T$向け逆反復法の並列計算機向け高速化
+    \end{itemize}
+  \end{itemize}
+  
+  \end{frame}
+
+\begin{frame}
+  \frametitle{実対称帯行列の固有対計算アルゴリズム}
+  \begin{exampleblock}{実対称帯行列の固有対計算アルゴリズム}
+    \begin{itemize}
+    \item 分割統治法 [Imamura {\em et al.} (2011)] 
+      \begin{itemize}
+      \item 全固有対計算向け
+      \item[\checkmark] [Imamura {\em et al.} (2011)] では，$w=2$限定
+      \end{itemize}
+    \item[\checkmark] 2分法+逆反復法 [Gupta (1973) / Murata (1986)]
+      \begin{itemize}
+      \item 部分固有対計算向け
+      \item 任意の半帯幅$w$に対して適用可能
+      \end{itemize}
+    \end{itemize}
+  \end{exampleblock}
+
+  \begin{itemize}
+  \item Chapter 5: $B$向けの部分固有対計算のための並列アルゴリズムの改良
+    \begin{itemize}
+    \item $B$向けの2分法+逆反復法を再実装
+    \item[\checkmark] Chapter 4の結果を利用して，$B$向け逆反復法を改良
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{特異対計算}
+  \begin{block}{Def. 特異対 $(\sigma_i,\ \bm{u}_i,\ \bm{v}_i)$}
+    \begin{itemize}
+    \item 実長方行列$M \in \mathbb{R}^{m \times n}$ ($\operatorname{rank}(M)=r,\ r \le \min(m,n)$)の特異対 $(\sigma_i,\ \bm{u}_i,\ \bm{v}_i)$は以下を満たす組:
+      \begin{align*}
+        \begin{aligned}
+	  M \bm{v}_i & = \sigma_i \bm{u}_i\\
+	  M^\top \bm{u}_i & = \sigma_i \bm{v}_i
+	\end{aligned}
+      	\quad (i=1,\ \dots,\ r)
+      \end{align*}
+      \begin{itemize}
+      \item $\sigma_i \in \mathbb{R}$: $M$の特異値 ($\sigma_1 \ge \dots \ge \sigma_r > 0$)
+      \item $\bm{u}_i \in \mathbb{R}^m$: $\sigma_i$に対応する左特異ベクトル
+      \item $\bm{v}_i \in \mathbb{R}^n$: $\sigma_i$に対応する右特異ベクトル
+      \end{itemize}
+    \end{itemize}
+  \end{block}
+
+  \begin{itemize}
+  \item 固有対との関係:
+    \begin{align*}
+      \begin{bmatrix}
+        & M \\
+        M^\top & 
+      \end{bmatrix}
+      \begin{bmatrix}
+        \bm{u}_i\\ \bm{v}_i
+      \end{bmatrix}
+      =
+      \sigma_i
+      \begin{bmatrix}
+        \bm{u}_i\\ \bm{v}_i
+      \end{bmatrix}
+    \end{align*}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{特異対計算}
+  \begin{block}{特異対計算の応用}
+    \begin{itemize}
+    \item Applications:
+      \begin{itemize}
+      \item 行列の低ランク近似
+      \item 統計処理 $\to$ \textcolor{blue}{データ分析}
+	\begin{itemize}
+	\item \textcolor{red}{主成分分析: Principal component analysis (PCA)} [Pearson (1901)]
+	\item 最小二乗法
+	\end{itemize}
+	%%       \item Low-rank approximation
+      \item 他の行列分解 (High order SVD, テンソル分解, etc.)
+      \end{itemize}
+    \item[\checkmark] \textcolor{blue}{大きいものから$\ell$個}の特異値と対応する特異ベクトルが必要
+      \begin{itemize}
+      \item $\ell$: 行列次元$m$, $n$に対して, 十分小さい
+      \end{itemize}
+    \end{itemize}
+  \end{block}
+
+  \begin{itemize}
+  \item[\checkmark] 対象となる行列: \textcolor{blue}{大規模 \& 疎構造} $\to$ Krylov部分空間法
+  \end{itemize}
+
+  %% \begin{alertblock}{データ分析}
+  %%   \begin{itemize}
+  %%   \item データの分析 $\to$ 何らかの施策の提案
+  %%   \item 機械学習や\textcolor{red}{統計処理}は重要なツール
+  %%   \item PCA $\to$ データのノイズ除去 (次元圧縮)のために用いられる
+  %%     \begin{itemize}
+  %%     \item 重要な情報のみを抽出することができる
+  %%     \item[\checkmark] 対象となる行列: \textcolor{blue}{大規模 \& 疎構造} $\to$ Krylov部分空間法
+  %%     \end{itemize}
+  %%   \end{itemize}
+  %% \end{alertblock}
+\end{frame}
+
+\begin{frame}
+  \frametitle{大規模疎行列向け部分特異対計算のためのアルゴリズム}
+  \begin{block}{Golub-Kahan-Lanczos (GKL) 法 [Golub-Kahan (1965)]}
+    \begin{itemize}
+    \item Krylov部分空間に基づく反復法
+    \item $k$反復目において，$k$次\textcolor{red}{2重対角行列$B_k$}を生成
+    \end{itemize}
+  \end{block}
+  \input{rgkl_en.tex}
+  \begin{itemize}
+  \item GKL法による大規模疎行列の部分特異対計算: 
+    \begin{itemize}
+    \item[\checkmark] $k_{\textrm{end}}$ (\textcolor{red}{$k_{\textrm{end}} \ll n$})反復で計算終了 比較的少ない計算コスト
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{上2重対角行列$B_k$の部分特異対計算}
+  \begin{itemize}
+  \item 実対称3重対角行列の固有値問題に帰着: \\
+    \input{svd_bidiag_arg_en.tex}
+    \begin{itemize}
+    \item Transform $B_k$ into $T_{2k}$ [Golub-Kahan (1965)]
+      \begin{itemize}
+      \item $B_k$の特異値が$T_{2k}$の正固有値に対応
+      \item[\checkmark] 行と列の入れ替えのみで実現可能
+      \end{itemize}
+    \item 拡大行列 $T_{2k}$（$2k$次実対称3重対角行列）の部分固有対計算
+      \begin{itemize}
+      \item \textcolor{red}{最大のものから$\ell$個}の固有値と対応する固有ベクトルのみが必要
+      \item[\checkmark] \underline{2分法+逆反復法}が適用可能
+      \end{itemize}
+    \end{itemize}
+  \end{itemize}
+  \begin{itemize}
+  \item[\checkmark] 上2重対角行列$B_k$の特異対は, 停止条件にも用いられる
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{再直交化付きGKL法}
+  \begin{block}{再直交化付きGKL法（GKLR法）}
+    \begin{itemize}
+    \item Krylov部分空間のベクトルの直交性を保つため，再直交化を加える
+      \begin{itemize}
+      \item 計算量: $O({k_{\textrm{end}}}^2(m+n))$
+      \end{itemize}
+    \item 再直交化計算がボトルネックとなりうる
+    \end{itemize}
+  \end{block}
+  \input{rgkl_highlight_en.tex}
+  \begin{itemize}
+  \item Chapter 6: GKLR法と2分法+逆反復法に基づくの高速化
+    \begin{itemize}
+    \item[\checkmark] 再直交化計算に対して新たな並列アルゴリズムを提案する
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{本研究において得られた成果 }
+  \begin{itemize}
+  \item 以下の項目に対して，新たな並列アルゴリズム/ソルバを提案した
+    \begin{itemize}
+    \item \textcolor{blue}{実対称行列の部分固有対計算}に対して，\textcolor{red}{2分法と逆反復法}に基づく新たな並列アルゴリズムを提案した: 
+      \begin{itemize}
+      \item 実対称3対角行列向け逆反復法 (Chapter 3 \& 4)
+      \item 実対称帯行列向け2分法+逆反復法 (Chapter 5)
+      \end{itemize}
+    \item 2分法+逆反復法を適用可能な，\textcolor{blue}{大規模疎行列向け部分特異対計算}において，\textcolor{red}{再直交化計算の高速化}のための新たな並列実装を提案した (Chapter 6)
+    \end{itemize}
+  \item 共有メモリ型マルチコア計算機上での数値実験により，性能評価し，従来法よりも高い性能が得られることを示した
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{論文の構成}
+  \begin{itemize}
+  \item Chapter 1: 序論
+  \item Chapter 2: 実対称3対角行列の部分固有対計算
+  \item Chapter 3: compact WY 再直交化法を実装した逆反復法
+  \item Chapter 4: 再直交化付きブロック逆反復法
+  \item Chapter 5: 実対称帯行列の部分固有対計算
+  \item Chapter 6: 大規模疎行列の部分特異対計算
+  \item Chapter 7: 結論
+  \end{itemize}
+\end{frame}
+

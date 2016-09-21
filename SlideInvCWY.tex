@@ -1,0 +1,41 @@
+  \begin{frame}
+  \frametitle{Chapter 3:  compact WY 再直交化法を実装した逆反復法}
+
+  \begin{itemize}
+  \item BLAS 2で構成される\textcolor{red}{compact WY 再直交化法}を逆反復法に導入
+  \end{itemize}
+  
+    \begin{block}{Chapter 3の内容}
+      \begin{enumerate}[Sec.~3.1]
+      \item compact WY 再直交化法
+        \begin{itemize}
+        \item Householder 再直交化法 (BLAS 1)
+        \item compact WY 再直交化法 (BLAS 2) 
+        \end{itemize}
+      \item compact WY 再直交化法の計算量の削減
+      \item 逆反復法へのcompact WY 再直交化法の実装
+      \item 数値実験
+      \end{enumerate}
+    \end{block}
+
+    \begin{enumerate}[{[{A}1]}]
+    \footnotesize
+  \item H.~Ishigami, K.~Kimura, and Y.~Nakamura, ``On implementation and evaluation of inverse iteration algorithm with compact WY orthogonalization,''  {\em IPSJ Transactions on Mathematical Modeling and Its Applications}, vol. 6, no. 2, pp. 25--35, 2011.
+    \end{enumerate}
+    \end{frame}
+
+   \begin{frame}
+    \frametitle{Chapter 3のまとめ}
+    \begin{itemize}
+    \item 逆反復法の高速化のため、再直交化計算において、行列-ベクトル乗算で構成される\textcolor{red}{compact WY 再直交化法} [Yamamoto-Hirota (2011)]を適用した
+      \begin{itemize}
+      \item Householder変換に基づく再直交化計算法にcompact WY representation [Schreiber-van Loan (1989)] を適用したもの
+      \end{itemize}
+    \item 行列の構造に着目することで, compact WY reorthogonalization の
+      \textcolor{blue}{計算量やメモリ使用量を削減する実装}を提案した
+    \end{itemize}
+    \begin{itemize}
+    \item 新たに実装したcompact WY直交化法を適用することで, 
+      逆反復法による固有ベクトル計算を高速化できることを示した
+    \end{itemize}
+  \end{frame}

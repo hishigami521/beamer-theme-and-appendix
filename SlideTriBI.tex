@@ -1,0 +1,349 @@
+\begin{frame}
+  \frametitle{Chapter 2:  実対称3対角行列の部分固有対計算}
+      \input{one_phase_tridiag_evd_en.tex}
+    \begin{itemize}
+    \item $A$から直接計算するのではなく、以下の3段階に分けて計算
+      \begin{enumerate}
+      \item 3重対角化 [Wilkinson (1962), etc.]
+        \begin{align*}
+          T:= & V_T A V_T^\top
+        \end{align*}
+      \item \underline{実対称3重対角行列$T$の固有対を計算}
+      \item 逆変換: $T$の固有ベクトルから$A$の固有ベクトルを計算
+        \begin{align*}
+          \bm{q}_k := & V_T \bm{q}_k \quad \text{for $k=1,\dots,\ell$}
+        \end{align*}
+      \end{enumerate}
+    \end{itemize}
+
+      \begin{block}{Chapter 2の内容}
+    \begin{enumerate}[Sec.~2.1]
+    \item 実対称3対角行列向け2分法とその並列化
+    \item 実対称3対角行列向け逆反復法とその並列化
+    \end{enumerate}
+  \end{block}
+
+\end{frame}
+
+  \begin{frame}
+    \frametitle{2分法による固有値計算}
+    \begin{block}{2分法による固有値計算 [Kahan (1966), etc.]}
+      \begin{itemize}
+      \item 区間$(\mu^L,\mu^R]$に固有値があるかどうかを2分探索によって計算
+        \begin{itemize}
+        \item $\nu_T(\mu)$（$T$の$\mu(:=(\mu^L+\mu^R)/2)$以下の固有値の数）の計算
+        \item[\checkmark] \textcolor{red}{相対精度}の意味で高精度
+        \end{itemize}
+      \item 固有値を独立に計算できる: \textcolor{blue}{並列計算向き}
+      \item 実装: LAPACKの\texttt{dstebz}および下位ルーチン\texttt{dlaebz} [Kahan, 1966]
+      \end{itemize}
+    \end{block}
+
+    %% \begin{block}{実装}
+    %%   \begin{itemize}
+    %%   \item[\checkmark] 主要な計算: $\nu_T(\mu)$（$T$の$\mu$以下の固有値の数）の計算
+    %%   \item 実対称\textcolor{red}{3重対角}行列向けの実装
+    %%     \begin{itemize}
+    %%     \item LAPACKの\texttt{dstebz}および下位ルーチン\texttt{dlaebz} [Kahan, 1966]
+    %%     \end{itemize}
+    %%   \end{itemize}
+    %% \end{block}
+
+    \begin{exampleblock}{$\nu_T(\mu)$の計算法}
+      \begin{itemize}
+      \item $\nu_T(\mu)=\text{(以下の漸化式における\textcolor{red}{$r_j$の負の数})}$
+        \begin{align*}
+	  \begin{cases}
+	    r_1 = d_1 - \mu & \\
+	    r_j = d_j - e^2_{j-1} / r_{j-1} - \mu & \text{for $j=2,\ \dots,\ n$}
+	  \end{cases}
+        \end{align*}
+        \begin{itemize}
+        \item $d_j$: $T$の第$j$対角成分 ($1 \le j \le n$)
+        \item $e_j$: $T$の第$j$副対角成分 ($1 \le j \le n-1$)
+        %% \item $\mu_k$: シフト値
+        \end{itemize}
+      \end{itemize}
+    \end{exampleblock}
+      %%     \begin{exampleblock}{$\nu_T(\mu)$ : Sturm Count}
+    %%   \begin{itemize}
+    %%   \item $\nu_T(\mu)$:以下の交代条件を満たす$j=1,\ \cdots,\ n$の個数
+    %%     \begin{itemize}
+    %%     \item $\Delta_j (\mu)$:$T-\mu I$の主座小行列式 ($j=1,\ \cdots,\ n$), $\Delta_0(\mu)=1$
+    %%     \item 交代条件:$\Delta_j \Delta_{j-1} < 0$.\ または, $\Delta_j=0$なら$\Delta_{j+1} \Delta_{j-1} < 0$
+    %% \item $T-\mu I$の\textcolor{red}{主座小行列式の全符号}を求め、交代条件を満たする必要がある
+    %% \item \textcolor{blue}{$r_j=\Delta_j / \Delta_{j-1}$の負の数}を調べればよい
+    %%     \end{itemize}
+    %%   \end{itemize}
+    %% \end{exampleblock}
+    %% \begin{block}{Cf: Sturm Theorem}
+    %%   \begin{itemize}
+    %%   \item $\nu_T(\mu)$はStrum Count $\mu$より小さな固有値の個数に等しい
+    %%   \end{itemize}
+    %% \end{block}
+
+  \end{frame}
+
+  \begin{frame}[shrink]
+    \frametitle{実対称3重対角行列向け2分法（逐次）[Kahan (1966), etc.]}
+    \begin{block}{Alg. 実対称3重対角行列向け2分法（逐次）[Kahan (1966), etc.]}
+        \begin{algorithmic}[1]
+          \Function{SerialTriBisection}{$T$, $\ell$}
+          \State Set $\mu^L_1,\mu^R_1$
+          \Comment Use the Gerschgorin theorem, etc.
+          \State $k^{\textrm{next}}_b:=1,\ k^{\textrm{next}}_e:=1$
+          \Repeat
+          \State $k_b:=k^{\textrm{next}}_b,\ k_e:=k^{\textrm{next}}_e$ 
+          \Do{$k:=k_b$ to $k_e$}
+          \Comment $k_e \le \ell$
+          \State $\mu_k := (\mu^L_k+\mu^R_k) / 2$
+          \State \textcolor{red}{$c_k$の計算} $(c_k:=\nu_T(\mu_k))$          
+          %% \State $c_k:=0,r:=1$
+          %% \Do{$j:=1$ to $n$}
+          %% \Comment $c_k(:=\nu_T(\mu_k))$の計算
+          %% \State $r := d_j - e^2_{j-1} / r - \mu_k$ ($e_0 := 0$)
+          %% \State \algif $r \le 0$ \algthen $c_k := c_k + 1$
+          %% \EndDo
+          \State Update $\mu^L_k, \mu^R_k$, and $k^{\textrm{next}}_e$ (See Table 2.1)
+          \EndDo
+          \Do{$k:=k_b$ to $k_e$}
+          \If{$|\mu^L_k - \mu^R_k |$ is sufficiently small, }
+          \State $\mu^L_k \leftrightarrow \mu^L_{k^{\textrm{next}}_b}$, $\mu^R_k \leftrightarrow \mu^R_{k^{\textrm{next}}_b}$, and $k^{\textrm{next}}_b:=k^{\textrm{next}}_b+1$
+          \EndIf
+          \EndDo
+          \Until{$k^{\textrm{next}}_b > k^{\textrm{next}}_e$}
+          \State $\mu_k := (\mu^L_k+\mu^R_k) / 2$ for $k=1,\ \dots,\ \ell$ \& Sort them in descending order
+          %% \State $\mu_k := (\mu^L_k+\mu^R_k) / 2$ for $k=1,\ \dots,\ \ell$
+          %% \State Sort $\mu_k$ for $k=1,\ \dots,\ \ell$ in descending order
+          \State \Return $\tilde{\lambda}_k := \mu_k$ for $k=1,\ \dots,\ \ell$
+          \EndFunction
+        \end{algorithmic}
+    \end{block}
+    %% \begin{itemize}
+    %% \item $\mu_k$: タスク$k$におけるシフト値
+    %% \item $c_k$: $\mu_k$より小さい固有値の数
+    %% \item[\checkmark] $p_{\min}$: 浮動小数点演算における逆数がオーバーフローしない最小値
+    %% \end{itemize}
+  \end{frame}
+
+  \begin{frame}
+    \frametitle{$(\mu^L,\mu^R]$の更新ルール}
+
+      \begin{center}
+        \renewcommand{\arraystretch}{1.2}
+        \begin{tabular}{ll}\hline
+          Condition & Operations \\\hline\hline
+          %% $\nu_T(\mu_k) = \nu_T(\mu^L_k)$ and $\nu_T(\mu_k) = \nu_T(\mu^R_k)$ & N/A \\\hline
+          $\nu_T(\mu_k) = \nu_T(\mu^L_k)$ & $\mu^L_k := \mu_k$ \\\hline
+          $\nu_T(\mu_k) = \nu_T(\mu^R_k)$ & $\mu^R_k := \mu_k$ \\\hline
+          $\nu_T(\mu_k) \neq \nu_T(\mu^L_k)$ &  1. $k^{\textrm{next}}_e := k^{\textrm{next}}_e +1$ \\
+          かつ $\nu_T(\mu_k) \neq \nu_T(\mu^R_k)$ &  2. $\mu^L_{k^{\textrm{next}}_e} := \mu_k$, $\mu^L_{k^{\textrm{next}}_e} := \mu^R_k$ \\
+          & 3. $\mu^R_k := \mu_k$ \\\hline
+        \end{tabular}
+      \end{center}
+
+      \begin{itemize}
+        \renewcommand{\arraystretch}{1.2}
+      \item 「$\nu_T(\mu_k) \neq \nu_T(\mu^L_k)$ かつ $\nu_T(\mu_k) \neq \nu_T(\mu^R_k)$」の場合:
+        \begin{itemize}
+        \item $(\mu^L_k,\mu_k]$と$(\mu_k,\mu^R_k]$両区間に固有値が存在
+          \item[\checkmark] 探索区間の数が増える
+        \end{itemize}
+      \item[\checkmark] 「$\nu_T(\mu_k) = \nu_T(\mu^L_k)$ かつ $\nu_T(\mu_k) = \nu_T(\mu^R_k)$」の場合は考えなくてよい
+        \begin{itemize}
+        \item 常に$\nu_T(\mu^L_k) \neq \nu_T(\mu^R_k)$が成り立つ
+        \end{itemize}
+      \end{itemize}
+  \end{frame}
+  
+  \begin{frame}
+    \frametitle{実対称3重対角行列向け2分法の並列実装}
+    \begin{block}{実対称3重対角向け実装に対する並列化}
+      \begin{itemize}
+      \item 固有値ごとの独立性に基づく並列化
+        \begin{itemize}
+        \item ScaLAPACK: \texttt{PDSTEBZ}ルーチン [Demmel-Dhillon-Ren (1994)]
+        \item 並列計算向きだが、計算量が増える
+        \end{itemize}
+      \item 探索数を増やすことによる並列化
+        \begin{itemize}
+        \item 多分法 [Lo-Philippe-Sameh (1987) / Simon (1989)]
+        \item 多固有値多分法 [Katagiri-V\"{o}mel-Demmel (2007)]
+        \end{itemize}
+      \end{itemize}
+    \end{block}
+    \begin{alertblock}{本研究で用いたスレッド並列向け実装}
+      \begin{itemize}
+      \item $k$に関するループについてOpenMPで並列化 
+        \begin{itemize}
+        \item $\nu_T(\mu_k)$の計算の独立性に着目
+        \end{itemize}
+      \item 他の計算については逐次版と同じ実装
+      \item[\checkmark] 計算量: 逐次コードと同じ
+      \end{itemize}
+    \end{alertblock}
+  \end{frame}
+
+  \begin{frame}[shrink]
+    \frametitle{実対称3重対角行列向け2分法のスレッド並列実装}
+    \begin{exampleblock}{Alg. 実対称3重対角行列向け2分法（スレッド並列）}
+      \begin{algorithmic}[1]
+        \Function{ParallelTriBisection}{$T$, $\ell$}
+        \State Set $\mu^L_1,\mu^R_1$
+        \Comment Use the Gerschgorin theorem, etc.
+        \State $k_b:=1,\ k_e:=1$
+        \Repeat
+        \State \textcolor{red}{\texttt{!\$omp parallel do private($\mu_k,c_{\mathrm{t}}$)}}
+        \Do{$k:=k_b$ to $k_e$}
+        \Comment $k_e \le \ell$
+        \State $\mu_k := (\mu^L_k+\mu^R_k) / 2$
+        \State $c_{\textrm{t}}$の計算 $(c_{\textrm{t}}:=\nu_T(\mu_k))$
+        %% \State $c_{\mathrm{t}}:=0$, $r:=1$
+        %% \Do{$j:=1$ to $n$}
+        %% \State $r := d_j - e^2_{j-1} / r - \mu_k$ ($e_0 := 0$)
+        %% \State \algif $r \le 0$ \algthen $c_\textrm{t} := c_\textrm{t} + 1$
+        %% \EndDo
+        \State \textcolor{blue}{$c_k := c_\mathrm{t}$}
+        \EndDo
+        %% \State \textcolor{red}{\texttt{!\$omp end parallel do}}
+        \State Update $\mu^L_k, \mu^R_k$, and $k^{\textrm{next}}_e$ for $k=k_b,\ \dots,\ k_e$ 
+        \State
+        \begin{varwidth}[t]{\textwidth}
+          Check $|\mu^L_k - \mu^R_k |$ for $k=k_b,\ \dots,\ k_e$ \\
+          \& Update $\mu^L_k$, $\mu^R_k$, and $k^{\textrm{next}}_b$ if necessary
+        \end{varwidth}
+        %% \Do{$k:=k_b$ to $k_e$}
+        %% \State Update $\mu^L_k$, $\mu^R_k$, and $k^{\textrm{next}}_e$ (See Table~\ref{tab:update-rule-bisection})
+        %% \EndDo
+        %% \State
+        %% \begin{varwidth}[t]{\textwidth}
+        %%   Check $|\mu^L_k - \mu^R_k |$ for $k=k_b,\ \dots,\ k_e$ \& Update $\mu^L_k$, $\mu^R_k$, and $k^{\textrm{next}}_b$ if necessary \\
+        %%   (See lines~\ref{line:sbi-criteria-do-tri}-\ref{line:sbi-criteria-enddo-tri} in Algorithm~\ref{alg:seri-bisec-tri})
+        %% \end{varwidth}
+        \Until{$k^{\textrm{next}}_b > k^{\textrm{next}}_e$}
+        \State $\mu_k := (\mu^L_k+\mu^R_k) / 2$ for $k=1,\ \dots,\ \ell$ \& Sort them in descending order
+        %% \State $\mu_k := (\mu^L_k+\mu^R_k) / 2$ for $k=1,\ \dots,\ \ell$
+        %% \State Sort $\mu_k$ for $k=1,\ \dots,\ \ell$ in descending order
+        \State \Return $\tilde{\lambda}_k := \mu_k$ for $k=1,\ \dots,\ \ell$
+        \EndFunction
+      \end{algorithmic}
+    \end{exampleblock}
+  \end{frame}
+
+  %%% 逆反復法
+  \begin{frame}
+    \frametitle{逆反復法による固有ベクトル計算}
+    \begin{block}{逆反復法 [Kahan (1966), etc.]}
+      \begin{itemize}
+      \item $\tilde{\lambda}_j$: $T$の固有値$\lambda_j$の近似値
+      \item $\bm{q}_j$: $\lambda_j$に対応する固有ベクトル
+      \item[\checkmark] 以下の連立1次方程式を反復して解くことで、$\bm{v}_j^{(i)}$は$\bm{q}_j$に収束する:
+      \end{itemize}
+      \begin{align*}
+        \left( T - \tilde{\lambda}_j I \right) \bm{v}_j^{(i)} 
+        = \bm{v}_j^{(i-1)}, \text{ $1 \le j \le m$} 
+      \end{align*}
+    \end{block}
+
+    \begin{alertblock}{Remark: クラスター固有値に対する固有ベクトル計算}
+      \begin{itemize}
+      \item \textcolor{red}{再直交化} が必要 
+      \item Peters-Wilkinson (1971) による判定基準: $| \tilde{\lambda}_j-\tilde{\lambda}_{j-1}| < 10^3 \times \| T \|_1$ ($2\le j \le m$)
+        \begin{itemize}
+        \item[\checkmark] $n\ge 1000$では、多くの固有値が同一のクラスタに属する [Dhillon (1997)]
+        \end{itemize}
+      \end{itemize}
+    \end{alertblock}
+
+    \begin{itemize}
+    \item 実対称3重対角行列向け再直交化付き逆反復法の実装
+      \begin{itemize}
+      \item[\checkmark] \texttt{dstein} (in LAPACK) [Kahan (1966)]
+      \end{itemize}
+    \end{itemize}
+  \end{frame}
+
+  \begin{frame}
+    \frametitle{逆反復法の収束}
+    任意の初期ベクトル$\bm{v}_k^{(0)}$は$T$の固有ベクトル$\bm{q}_j$（$1\le j \le n$）により
+    \begin{align*}
+      \bm{v}_k^{(0)} 
+      & = 
+      \sum_{j=1}^n \beta_j \bm{v}_j \text{, $\beta_j \in \mathbb{R}$}
+    \end{align*}
+    と表せる. このことから, 
+    \begin{align*}
+      \bm{v}_k^{(i)} 
+      & = \left( T - \tilde{\lambda}_k I \right)^{-1} \bm{v}_k^{(i-1)} \\
+      & = \left( T - \tilde{\lambda}_k I \right)^{-i} \bm{v}_k^{(0)} \\
+      & = \sum_{j=1}^n \beta_j \left( T - \tilde{\lambda}_k I \right)^{-i} \bm{q}_j \\
+      & = \sum_{j=1}^n \frac{\beta_j}{\left( \lambda_j - \tilde{\lambda}_k \right)^i} \bm{q}_j 
+    \end{align*}
+    故に、$\beta_k \neq 0$かつ$|\lambda_k - \tilde{\lambda}_k | \ll |\lambda_j - \tilde{\lambda}_k |$（$j \neq k$）ならば、$\bm{v}_k^{(i)} \to \bm{q}_k$（$i \to \infty$）
+  \end{frame}
+
+  \begin{frame}[shrink]
+    \frametitle{再直交化付き逆反復法（\texttt{dstein} [Kahan (1966)]）}
+    \begin{block}{Alg. 再直交化付き逆反復法（\texttt{dstein} [Kahan (1966)]）}
+      \begin{algorithmic}[1]
+        \Function{TriInv}{$T,\ \ell,\ \tilde{\lambda}_1, \ \dots, \ \tilde{\lambda}_\ell$}
+        \Do{$k:=1$ to $\ell$}
+        \State $i := 0$
+        \State Generate an initial random vector $\bm{v}_k^{(0)}$
+        \State \fcolorbox{blue}{blue!20}{$T - \tilde{\lambda}_k = P_k L_k U_k$}
+        \Comment Call \texttt{dlagtf}
+        \Repeat
+        \State $i := i+1$
+        \State Normalize $\bm{v}_k^{(i-1)}$ to $\bm{q}_k^{(i-1)}$
+        \State \fcolorbox{blue}{blue!20}{Solve $P_k L_k U_k \bm{v}_k^{(i)} = \bm{q}_k^{(i-1)}$}
+        \Comment Call \texttt{dlagts}
+        \If{$k>1$ and $|\tilde{\lambda}_{k-1} - \tilde{\lambda}_k | \le 10^{-3}\| T \|_1$, }
+        \Do{$j:=k_1$ to $k-1$}
+        \Comment MGS法による\fcolorbox{darkgreen}{darkgreen!10}{再直交化計算}
+        \State $\bm{v}_k^{(i)} := \bm{v}_k^{(i)} - \langle \bm{v}_k^{(i)}, \bm{q}_j \rangle \bm{q}_j$
+        \EndDo
+        \Else
+        \State $k_1 := k$
+        \EndIf
+        \Until{some condition is met.}
+        \State Normalize $\bm{v}_k^{(i)}$ to $\bm{q}_k^{(i)}$
+        \State $Q_k := [ Q_{k-1},\ \bm{q}_k^{(i)} ]$
+        %% \State $\bm{q}_k=\bm{v}_k^{(i)}$
+        \EndDo
+        \State \Return $Q_\ell = [ \bm{q}_1,\ \dots,\ \bm{q}_\ell ]$
+        \EndFunction
+      \end{algorithmic}
+    \end{block}
+  \end{frame}
+  
+  \begin{frame}
+    \frametitle{再直交化付き逆反復法の並列計算による高速化}
+    \begin{block}{逆反復法の計算量と並列化}
+      \begin{itemize}
+      \item 計算量: \textcolor{red}{再直交化計算}がボトルネック
+        \begin{itemize}
+        \item 連立方程式の求解: $O(\ell n)$
+        \item 再直交化計算: \underline{$O(\ell^2 n)$} $\to$ 修正Gram-Schmidt（MGS）法（BLAS 1）
+        \end{itemize}
+      \item 並列化: 再直交化を要する場合、\textcolor{blue}{各行の計算内}でしか並列化できない
+      \end{itemize}
+    \end{block}
+
+    \begin{itemize}
+    \item BLAS (Basic Linear Algebra Subprograms)
+      \begin{itemize}
+      \item BLAS 1: ベクトル演算
+      \item BLAS 2: 行列-ベクトル乗算
+      \item BLAS 3: 行列(-行列)乗算
+      \end{itemize}
+    \item 性能: BLAS 3$>$BLAS 2$>$BLAS 1（条件付）
+    \item ライブラリによっては、並列実装も提供されている
+    \end{itemize}
+
+    \begin{alertblock}{Chapter 3 \& 4の位置付け}
+      \begin{itemize}
+      \item 課題: 再直交化計算の並列化による高速化
+      \item[\checkmark] 行列-ベクトル乗算(3)や行列乗算(4)で構成された逆反復法
+      \end{itemize}
+    \end{alertblock}
+  \end{frame}

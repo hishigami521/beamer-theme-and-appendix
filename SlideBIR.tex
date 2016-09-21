@@ -1,0 +1,451 @@
+\begin{frame}
+  \frametitle{Chapter 4: 再直交化付きブロック逆反復法}
+  \begin{itemize}
+  \item[\checkmark] BLAS 3で構成される\textcolor{red}{再直交化付きブロック逆反復法}を提案
+  \end{itemize}
+  \vfill
+  \begin{block}{Chapter 4の内容}
+    \begin{enumerate}[Sec.~4.1]
+    \item 同時逆反復法 (SI Algorithm)
+    \item 再直交化付きブロック逆反復法 (BIR Algorithm)
+    \item 数値実験
+    \end{enumerate}
+  \end{block}
+  \vfill
+  \begin{enumerate}[{[{A}1]}]
+    \footnotesize
+    \setcounter{enumi}{5}
+  \item H. Ishigami, K. Kimura, and Y. Nakamura,
+    ``A new parallel symmetric tridiagonal eigensolver based on bisection and inverse iteration algorithms for shared-memory multi-core processors,''
+    in {\em P2P, Parallel, Grid, Cloud and Internet Computing (3PGCIC), 2015
+      Tenth International Conference on}, IEEE Press, pp. 216--223, 2015.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}
+  \frametitle{BLAS 3で構成される逆反復アルゴリズム}
+
+  \begin{itemize}
+  \item BLAS 2で構成される再直交化アルゴリズムによりある程度の高速化ができた
+    \begin{itemize}
+    \item BLAS 3であれば更に高速化ができるのでは?
+    \end{itemize}
+  \item[\checkmark] BLAS 3で構成される再直交化アルゴリズムは? $\to$ \underline{存在しない}
+  \end{itemize}
+
+  \begin{block}{BLAS 3で構成される逆反復アルゴリズム:}
+    \begin{itemize}
+    \item 同時逆反復法 (SI) [Chatelin (1993)]
+    \item[\checkmark] 提案法: \textcolor{red}{再直交化付きブロック逆反復法} (BIR)
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}{SI: 同時逆反復法 [Chatelin (1993)]}
+  
+%%   \begin{itemize}
+%%   \item \textcolor{blue}{重複}固有値に対応する固有ベクトル計算として定義 [Chatelin (1993)]
+%% %（{\em Eigenvalues of Matrices} [Chatelin (1993)]）
+%%   \end{itemize}
+
+  \begin{block}{SI: 同時逆反復法}
+    \begin{algorithmic}[1]
+      \State Solve $\left( T-\tilde{\lambda}_k I \right) \bm{v}_k^{(i)} = \bm{v}_k^{(i-1)}$ \textcolor{blue}{for $k=1,\ \dots,\ \hat{\ell}$}
+      \State $V^{(i)} := Q^{(i)} R^{(i)}$ $\left(V^{(i)}=\begin{bmatrix} \bm{v}_1^{(i)} & \cdots & \bm{v}_{\hat{\ell}}^{(i)} \end{bmatrix}\right)$
+      \Comment QR分解
+    \end{algorithmic}
+    \begin{itemize}
+    \item 1: 同期1回の並列化が可能
+    \item 2: 高性能な並列アルゴリズムが提案されている（BLAS 3実装など）
+    \end{itemize}
+  \end{block}
+
+  \begin{alertblock}{Remark:}
+    \begin{itemize}
+    \item クラスターの固有値に対応する固有ベクトルをまとめて計算
+    \item ワーキングメモリ: \textcolor{red}{$6\hat{\ell}_{\max} n$} 
+      \begin{itemize}
+      \item $\hat{\ell}$: あるクラスターに属する固有値の数
+      \item $\hat{\ell}_{\max}$: 最大のクラスターに属する固有値の数
+      \end{itemize}
+    %% \item 常に性能が高いわけではない%Not always better algorithm (See Experiments I) 
+  \end{itemize}
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{BIR: 再直交化付きブロック逆反復法}
+  \begin{itemize}
+  \item \textcolor{blue}{$r$個の固有値に対する同時逆反復} ($r$: ブロックサイズ, $r<\hat{\ell}$)\\ 
+    +計算済みのベクトルに対する\textcolor{red}{再直交化}計算
+  \end{itemize}
+  \begin{exampleblock}{BIR: 再直交化付きブロック逆反復法}
+      \begin{algorithmic}[1]
+	\State Solve $\left( T-\tilde{\lambda}_j I \right) \bm{v}_k^{(i)} = \bm{q}_k^{(i-1)}$ \textcolor{blue}{for $k=r(j-1)+1,\ \dots,\ rj$}
+	%% \State \fcolorbox{red}{darkred!10}{Reorthogonalize $V_{j,r}^{(i)}$ against $\bm{q}_1,\ \dots,\ \bm{q}_{r(j-1)}$} {\footnotesize $\left(V_{j,r}^{(i)}=\begin{bmatrix} \bm{v}_{r(j-1)+1}^{(i)} & \cdots & \bm{v}_{rj}^{(i)} \end{bmatrix}\right)$}
+	\State Reorthogonalize $V_{j,r}^{(i)}$ against $\bm{q}_1,\ \dots,\ \bm{q}_{r(j-1)}$ {\footnotesize $\left(V_{j,r}^{(i)}=\begin{bmatrix} \bm{v}_{r(j-1)+1}^{(i)} & \cdots & \bm{v}_{rj}^{(i)} \end{bmatrix}\right)$}
+	\State $V_{j,r}^{(i)} := Q_{j,r}^{(i)} R_{j,r}^{(i)}$ {\footnotesize $\left(Q_{j,r}^{(i)}=\begin{bmatrix} \bm{q}_{r(j-1)+1}^{(i)} & \cdots & \bm{q}_{rj}^{(i)} \end{bmatrix},\ R^{(i)} \in \mathbb{R}^{r \times r}\right)$}
+      \end{algorithmic}
+    %% }
+  \end{exampleblock}
+  \begin{alertblock}{Remark: }
+    \begin{itemize}
+    \item 2+3: ブロック再直交化
+      \begin{itemize}
+      \item Block CGS2 algorithm [Barlow {\em et al.} (2012), etc.]（BLAS 3）
+      \end{itemize}
+    \item ワーキングメモリ: $6rn$ 
+    \item[\checkmark] \textcolor{red}{計算量は従来のアルゴリズムとほぼ同等}
+      %% \begin{itemize}
+      %% \item $r=\hat{\ell}$のとき: 同時逆反復法に対応
+      %% \item $r=1$のとき: 再直交化付き逆反復法に対応
+      %% \end{itemize}
+    \end{itemize}
+  \end{alertblock}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{再直交化付きブロック逆反復法}
+  \begin{minipage}{.47\hsize}
+    \begin{alertblock}{\footnotesize Alg.~BIR($T,\  r,\ \tilde{\lambda}_1, \ \dots, \ \tilde{\lambda}_{\hat{\ell}}$)}
+      \algrenewcommand\alglinenumber[1]{\scriptsize ####1:}
+      \begin{algorithmic}[1]
+ 	\scriptsize
+	\State $Q_0 = \bm{O}$
+	\Do{$j=1$ to $\hat{\ell}/r$}
+	\State (...)
+	\Repeat
+	\State $i = i+1$
+	\State \textcolor{red}{\texttt{!\$omp parallel do}}
+	\Do{$k=(j-1)r+1, \ \dots, \ jr$}
+	\State \fcolorbox{blue}{blue!20}{Solve $P_k L_k U_k \bm{v}^{(i)}_k = \bm{q}^{(i-1)}_k$}
+	\EndDo
+	\State \fcolorbox{red}{darkred!10}{$V^{(i)}_{j,r} = V^{(i)}_{j,r} - Q_{(j-1)r} Q_{(j-1)r}^\top V_{j,r}$}
+	\State \fcolorbox{darkgreen}{darkgreen!10}{$V^{(i)}_{j,r} = \overline{Q}^{(i)}_{j,r} R^{(i)}_{j,r}$}
+	\State \fcolorbox{red}{darkred!10}{$\overline{Q}^{(i)}_{j,r} = \overline{Q}^{(i)}_{j,r} - Q_{(j-1)r} Q_{(j-1)r}^\top \overline{Q}^{(i)}_{j,r}$}
+	\State \fcolorbox{darkgreen}{darkgreen!10}{$\overline{Q}^{(i)}_{j,r} = Q^{(i)}_{j,r} R^{(i)}_{j,r}$}
+	\Until{converge}
+	\State $Q_{jr} = \begin{bmatrix} Q_{(j-1)r} & Q^{(i)}_{j,r} \end{bmatrix}$  $\left( Q_r = \left[ Q^{(i)}_{1,r} \right] \right)$
+	\EndDo
+	\State \Return $Q_{\hat{\ell}} = \begin{bmatrix} \bm{q}_1 & \cdots & \bm{q}_{\hat{\ell}} \end{bmatrix}$
+      \end{algorithmic}
+    \end{alertblock}
+  \end{minipage}\hfill
+  \begin{minipage}{.51\hsize}
+    \fcolorbox{blue}{blue!20}{連立1次方程式の求解}
+    \begin{itemize}
+      \footnotesize
+    \item \textbf{do}ｰループについて\textcolor{red}{OpenMP}で並列化
+    \end{itemize}\par
+    \vspace{1ex}
+    \noindent
+    \fcolorbox{red}{darkred!10}{行列乗算$\times 2$}
+    \begin{itemize}
+      \footnotesize
+    \item \texttt{dgemm} (BLAS 3)
+    \end{itemize}\par
+    \vspace{1ex}
+    \noindent
+    \fcolorbox{darkgreen}{darkgreen!10}{QR分解}
+    \begin{itemize}
+      \footnotesize
+    \item CGS法の再帰的実装 (BLAS 3中心)\\
+      {[Yokozawa et al.~(2008)]}
+    \end{itemize}
+  \end{minipage}
+\end{frame}
+
+%%% Numerical experiments
+\begin{frame}
+  \frametitle{性能評価}
+  %% \begin{block}{Numerical experiments}
+  %%   \begin{itemize}
+  %%   \item Compute the $l$ largest eigenpairs of symmetric band matrices:
+  %%     \begin{itemize}
+  %%     \item $l=250,\ 500,\ 1000$
+  %%     \end{itemize}
+  %%   \item Target symmetric band matrices ($w$: size of bandwidth)
+  %%     \begin{itemize}
+  %%     \item $B_1$: $n=20,000$, $w=64$, random number in range (0,1)
+  %%     \item $B_2$: $n=40,000$, $w=256$, random number in range (0,1)
+  %%     \end{itemize}
+  %%   \end{itemize}
+  %% \end{block}
+  \underline{評価環境}
+  \begin{center}
+    \begin{tabular}{ll}
+      CPU         & Intel Xeon E5-2670@2.6GHz, 16 cores (8 cores $\times$ 2) \\
+      & L3 cache: 20MB $\times$ 2 \\
+      RAM         & DDR3-1600 64GB, 136.4GB/sec \\
+      Compiler 	& Intel C++/Fortran Compiler 15.0.2 \\
+      Options 	& \texttt{-O3 -xHOST -ipo -no-prec-div} \\ 
+      & \texttt{-openmp -mcmodel=medium -shared-intel} \\
+      Software 	& Intel Math Kernel Library 11.2.2 
+      %%  	Run option  & \texttt{numactl -i all}
+    \end{tabular}
+  \end{center}
+%% \end{frame}
+
+%% \begin{frame}
+%%   \frametitle{Summary of codes}
+
+  \begin{block}{数値実験の内容}
+    \begin{itemize}
+    \item 実対称3重対角行列における全固有対計算
+    \item 内容:
+      \begin{enumerate}
+      \item 固有ベクトル計算の所要時間: BIR（提案）vs.~SI (16スレッド)%(time for eig.~vec.~computation, 16 threads)
+      \item 提案並列ソルバの並列化による高速化率 (1 vs.~16スレッド)
+      \item 他の並列ソルバとの比較 (計算時間/精度, 16スレッド)
+      \end{enumerate}
+    %% \item テスト行列:
+    %%   \begin{itemize}
+    %%   \item $T_1$: ランダム行列 ($(0,1]$の一様乱数)
+    %%   \item $T_2$: 全要素が1の実対称3重対角行列
+    %%   \item $T_3$: Glued-Wilkinson matrix ($\delta = 10^{-4}$): 
+    %%   \end{itemize}
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{テスト行列について}
+  \begin{itemize}
+  \item $T_1$: Glued-Wilkinson matrix ($\delta = 10^{-4}$): 
+    \begin{align*}
+      T_1 :=
+      {\footnotesize
+	\left[
+          \begin{array}{cc|cc|cc|cc}
+            \multicolumn{2}{c|}{\raisebox{-0.5zw}[0pt][0pt]{\normalsize $W_{21}^\dagger$}}& & & & & & \\
+            & & \delta & & & & & \\\hline
+            & \delta & \multicolumn{2}{c|}{\raisebox{-0.5zw}[0pt][0pt]{\normalsize $W_{21}^\dagger$}} & & & & \\
+            & & & & \delta & & & \\\hline
+            & & & \delta & \ddots & \ddots & & \\
+            & & & & \ddots & \ddots & \delta & \\\hline
+            & & & & & \delta & \multicolumn{2}{c}{\raisebox{-0.5zw}[0pt][0pt]{\normalsize $W_{21}^\dagger$}} \\
+            & & & & & & &
+          \end{array}
+	  \right], \quad
+	W_{21}^\dagger	=
+	\begin{bmatrix}
+          10 & 1 &        &        &         &	\\
+       	  1  & 9 & 1      &        &         &	\\
+          & 1 & \ddots & \ddots &         & 	\\
+	  &   & \ddots & 0      & \ddots  &  	\\
+	  &   &        & \ddots & \ddots  & 1	\\
+	  &   &        &        & 1       & 10
+	\end{bmatrix},}
+    \end{align*}
+  \item $T_2$: 全要素が1の実対称3重対角行列
+  \item $T_3$: ランダム行列 ($(0,1]$の一様乱数)
+  \end{itemize}
+  \begin{itemize}
+  \item 各行列の特徴
+    \begin{enumerate}
+    \item 悪条件問題（極端に近接した固有値分布, クラスター数: 14) 
+    \item 計算量の意味で最悪 (クラスター数: 1)
+    \item 実問題に近い固有値分布 (1つのクラスターに多くの固有値が属する)
+    \end{enumerate}
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}
+  \frametitle{Exp.~I: BIR vs.~SI (固有ベクトル計算の所要時間, 16スレッド)}
+  \begin{minipage}{.5\textwidth}
+    \underline{Cases of $T_1$}\\
+    \centering
+    \includegraphics[scale=.65]{./figure/src04/time_bir1}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{Cases of $T_3$}\\
+    \centering
+    \includegraphics[scale=.65]{./figure/src04/time_bir3}
+  \end{minipage}
+  \begin{itemize}
+  \item BIR（提案）: 「$r$が大きければ高速になる」わけではない
+  \item SI: 最速であるとは限らない
+    \begin{itemize}
+    \item[\checkmark] メモリ使用量が多すぎて計算できていないケースも存在
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{cf: 逆反復法との計算時間の比較（16スレッド）[A2] (1/2)}
+  \begin{minipage}{.5\textwidth}
+    \underline{Cases of $T_1$}\\
+    \centering
+    \includegraphics[scale=.5]{./figure/src04/time1_acs}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{Cases of $T_3$}\\
+    \centering
+    \includegraphics[scale=.5]{./figure/src04/time3_acs}
+  \end{minipage}
+  \begin{itemize}
+  \item[\checkmark] BIR（提案法）が高速
+    \begin{itemize}
+    \item Inv-MGS: MGS法（BLAS 1）で再直交化
+    \item Inv-CGS2: CGS2法（BLAS 2）で再直交化
+    \end{itemize}
+    \begin{itemize}
+  \item ($T_1,\ n=31,500$) vs.~Inv-MGS: \textcolor{red}{5.6}x, vs.~Inv-CGS2: \textcolor{red}{14.5}x
+      \item ($T_3,\ n=30000$) vs.~Inv-MGS: \textcolor{red}{11.6}x, vs.~Inv-CGS2: \textcolor{red}{30.7}x
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[shrink]
+\frametitle{cf: 逆反復法との比較（上: 直交性  / 下: 残差）[A2] (2/2)}
+  \begin{minipage}{.5\textwidth}
+    \underline{Cases of $T_1$}\\
+    \centering
+    \includegraphics[scale=.5]{./figure/src04/orth1_acs}\\
+    \includegraphics[scale=.5]{./figure/src04/res1_acs}
+  \end{minipage}
+  \begin{minipage}{.45\textwidth}
+    \underline{Cases of $T_3$}\\
+    \centering
+    \includegraphics[scale=.5]{./figure/src04/orth3_acs}\\
+    \includegraphics[scale=.5]{./figure/src04/res3_acs}
+  \end{minipage}
+  \begin{itemize}
+  \item[\checkmark] 逆反復法とほぼ同程度の精度を達成
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Exp.~II: 提案並列ソルバの並列化による高速化率 (1 vs.~16スレッド)}
+  \underline{Cases of $T_1$}\\
+  \begin{center}
+    \begin{tabular}{rccc}
+      & PBi & BIR & Total \\\hline\hline
+      $n=21,000$ & 15.7x  & 5.5x  & 5.6x  \\
+      $n=42,000$ & 15.7x  & 7.7x  & 7.8x  \\\hline
+      \end{tabular}
+  \end{center}
+
+  \underline{Cases of $T_3$}\\
+  \begin{center}
+    \begin{tabular}{rccc}
+      & PBi & BIR & Total \\\hline\hline
+      $n=20,000$ & 15.9x & 12.9x  & 12.9x  \\
+      $n=40,000$ & 15.9x & 14.1x  & 14.2x  \\\hline
+      \end{tabular}
+  \end{center}
+
+  \begin{itemize}
+  \item PBi: 並列2分法 (in Section 2.1.2) による固有値計算の時間
+  \item BIR: BIR（$r=1024$）による固有ベクトル計算の時間
+  \item Total: 総計算時間
+  \end{itemize}
+
+  \begin{itemize}
+  \item 並列2分法: 問題サイズに依らず、高い性能
+  \item 再直交化付きブロック逆反復法: \underline{問題サイズが大きければ}、高い性能
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Exp.~III: 他の並列ソルバとの比較 (16スレッド)}
+  %% \begin{block}{vs.~Other eigensolvers}
+  %%   \begin{itemize}
+  %%   \item Compare the proposed solver with the other eigensolvers
+  %%   \end{itemize}
+  %% \end{block}
+
+  \begin{block}{各ソルバについて}
+    \centering
+    \begin{tabular}{lccc}
+      ルーチン& アルゴリズム & 全固有対 & 部分固有対 \\\hline
+      DSTEVR & MRRR法 & $\bigcirc$ & $\bigcirc$ \\
+      DSTEV & QR法 & $\bigcirc$ & $\times$ \\
+      DSTEDC & 分割統治法 & $\bigcirc$ & $\times$ \\
+      PBi+BIR ($r=1024$) & 提案法 & $\bigcirc$ & $\bigcirc$
+    \end{tabular}
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Exp.~III: 他の並列ソルバとの比較 ($T_1$, 16スレッド)}
+  \begin{minipage}{.6\textwidth}
+    \centering
+    \includegraphics[scale=.75]{./figure/src04/time_full1}
+  \end{minipage}
+  \begin{minipage}{.35\textwidth}
+    \centering
+    \includegraphics[scale=.45]{./figure/src04/orth_full1} \\
+    \includegraphics[scale=.45]{./figure/src04/res_full1}
+  \end{minipage}
+  \begin{itemize}
+  \item \textcolor{red}{提案法}は\textcolor{purple}{QR法}や\textcolor{blue}{MRRR法}よりも高速である一方、精度面で劣る
+  \item[\checkmark] \textcolor{ForestGreen}{分割統治法}はいくつかのケースで計算が破綻
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Exp.~III: 他の並列ソルバとの比較 ($T_2$, 16スレッド)}
+  \begin{minipage}{.6\textwidth}
+    \centering
+    \includegraphics[scale=.75]{./figure/src04/time_full2}
+  \end{minipage}
+  \begin{minipage}{.35\textwidth}
+    \centering
+    \includegraphics[scale=.45]{./figure/src04/orth_full2} \\
+    \includegraphics[scale=.45]{./figure/src04/res_full2}
+  \end{minipage}
+  \begin{itemize}
+  \item \textcolor{red}{提案法}は、他の計算ソルバよりも高精度
+  %% \item Time of Proposed solver is almost equivalent to that of \texttt{DSTEV}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Exp.~III: 他の並列ソルバとの比較 ($T_3$, 16スレッド)}
+  \begin{minipage}{.6\textwidth}
+    \centering
+    \includegraphics[scale=.75]{./figure/src04/time_full3}
+  \end{minipage}
+  \begin{minipage}{.35\textwidth}
+    \centering
+    \includegraphics[scale=.45]{./figure/src04/orth_full3} \\
+    \includegraphics[scale=.45]{./figure/src04/res_full3}
+  \end{minipage}
+  \begin{itemize}
+  \item \textcolor{red}{提案法}は、他の計算ソルバよりも高精度
+  %% \item Time of Proposed solver is almost equivalent to that of \texttt{DSTEV}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Chapter 4 のまとめ}
+  \begin{itemize}
+  \item 再直交化付きブロック逆反復法を提案した:
+    \begin{itemize}
+    \item[\quad\checkmark] （同時）逆反復法を基とした固有ベクトル計算アルゴリズム
+    \item 並列な逆反復計算＋ブロック再直交化
+    \end{itemize}
+  \end{itemize}
+  \begin{itemize}
+  \item 共有メモリマルチコア環境での数値実験により有効性を検証:
+    \begin{itemize}
+    \item 多くの場合で, 同時逆反復法よりも高速
+    \item 計算量の多い問題で, 高いスケーラビリティを達成
+    \item[\checkmark] より実問題に近い行列では, 他の解法よりも高精度
+    \end{itemize}
+  \end{itemize}
+%
+%% \begin{alertblock}{Future work}
+%%   \begin{itemize}
+%%   \item Develop implementation for other systems/architectures
+%%     \begin{itemize}
+%%     \item For distributed parallel systems
+%%     \item For accelerators (GPU / Intel Xeon Phi)
+%%     \end{itemize}
+%%   \item Extend to subset eigenpair computation for symmetric band matrices 
+%%   \end{itemize}
+%% \end{alertblock}
+
+\end{frame}
